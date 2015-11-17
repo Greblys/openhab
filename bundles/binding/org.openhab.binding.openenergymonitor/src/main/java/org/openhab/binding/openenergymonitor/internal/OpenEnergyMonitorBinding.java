@@ -51,6 +51,7 @@ public class OpenEnergyMonitorBinding extends
 
 	/* configuration variables for communication */
 	private int udpPort = 9997;
+	private int baudRate = 0;
 	private String serialPort = null;
 	private boolean simulate = false;
 
@@ -62,10 +63,12 @@ public class OpenEnergyMonitorBinding extends
 	public OpenEnergyMonitorBinding() {
 	}
 
+	@Override
 	public void activate() {
 		logger.debug("Activate");
 	}
 
+	@Override
 	public void deactivate() {
 		logger.debug("Deactivate");
 		messageListener.setInterrupted(true);
@@ -85,7 +88,7 @@ public class OpenEnergyMonitorBinding extends
 			Enumeration<String> keys = config.keys();
 
 			while (keys.hasMoreElements()) {
-				String key = (String) keys.nextElement();
+				String key = keys.nextElement();
 
 				// the config-key enumeration contains additional keys that we
 				// don't want to process here ...
@@ -101,6 +104,14 @@ public class OpenEnergyMonitorBinding extends
 					}
 				} else if ("serialPort".equals(key)) {
 					serialPort = value;
+					logger.debug("Serial port is " + serialPort);
+				} else if ("baudRate".equals(key))   {
+					try {
+						logger.debug("Baudrate is " + baudRate);
+						baudRate = Integer.parseInt(value);
+					} catch(NumberFormatException e){
+						logger.error("Wrong baud rate!! It must be an integer.");
+					}
 				} else if ("simulate".equals(key)) {
 					if (StringUtils.isNotBlank(value)) {
 						simulate = Boolean.parseBoolean(value);
@@ -168,11 +179,11 @@ public class OpenEnergyMonitorBinding extends
 
 			if (simulate == true)
 				connector = new OpenEnergyMonitorSimulator();
-			else if (serialPort != null)
-				connector = new OpenEnergyMonitorSerialConnector(serialPort);
+			else if (serialPort != null && baudRate != 0)
+				connector = new OpenEnergyMonitorSerialConnector(serialPort, baudRate);
 			else
 				connector = new OpenEnergyMonitorUDPConnector(udpPort);
-
+			logger.debug("Connector Serial " + connector.getClass());
 			try {
 				connector.connect();
 			} catch (OpenEnergyMonitorException e) {
@@ -197,7 +208,7 @@ public class OpenEnergyMonitorBinding extends
 							DatatypeConverter.printHexBinary(data));
 
 					HashMap<String, Number> vals = dataParser.parseData(data);
-
+					
 					for (OpenEnergyMonitorBindingProvider provider : providers) {
 						for (String itemName : provider.getItemNames()) {
 

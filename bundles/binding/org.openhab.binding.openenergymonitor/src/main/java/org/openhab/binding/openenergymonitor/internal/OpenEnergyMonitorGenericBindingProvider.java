@@ -48,6 +48,7 @@ public class OpenEnergyMonitorGenericBindingProvider extends
 	/**
 	 * {@inheritDoc}
 	 */
+	@Override
 	public String getBindingType() {
 		return "openenergymonitor";
 	}

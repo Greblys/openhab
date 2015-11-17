@@ -10,6 +10,7 @@ package org.openhab.binding.openenergymonitor.protocol;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 
 import gnu.io.CommPort;
 import gnu.io.CommPortIdentifier;
@@ -30,15 +31,14 @@ public class OpenEnergyMonitorSerialConnector extends
 
 	private static final Logger logger = LoggerFactory
 			.getLogger(OpenEnergyMonitorSerialConnector.class);
-
-	static final int BAUDRATE = 9600;
-
+	
+	int baudRate;
 	String portName = null;
 	SerialPort serialPort = null;
 	InputStream in = null;
 
-	public OpenEnergyMonitorSerialConnector(String portName) {
-
+	public OpenEnergyMonitorSerialConnector(String portName, int baudRate) {
+		this.baudRate = baudRate;
 		this.portName = portName;
 	}
 
@@ -48,15 +48,18 @@ public class OpenEnergyMonitorSerialConnector extends
 		try {
 			CommPortIdentifier portIdentifier = CommPortIdentifier
 					.getPortIdentifier(portName);
-			CommPort commPort = portIdentifier.open(this.getClass().getName(),
-					2000);
-			serialPort = (SerialPort) commPort;
-			serialPort.setSerialPortParams(BAUDRATE, SerialPort.DATABITS_8,
-					SerialPort.STOPBITS_1, SerialPort.PARITY_NONE);
-
-			in = serialPort.getInputStream();
-			logger.debug("Open Energy Monitor Serial Port message listener started");
-
+			if (portIdentifier.isCurrentlyOwned()){
+	            logger.warn("OpenEnergyMonitor Error: Port is currently in use");
+	        } else {
+				CommPort commPort = portIdentifier.open(this.getClass().getName(),
+						2000);
+				serialPort = (SerialPort) commPort;
+				serialPort.setSerialPortParams(baudRate, SerialPort.DATABITS_8,
+						SerialPort.STOPBITS_1, SerialPort.PARITY_NONE);
+				
+				in = serialPort.getInputStream();
+				logger.debug("Open Energy Monitor Serial Port message listener started");
+	        }
 		} catch (Exception e) {
 			throw new OpenEnergyMonitorException(e);
 		}
@@ -90,28 +93,31 @@ public class OpenEnergyMonitorSerialConnector extends
 
 	@Override
 	public byte[] receiveDatagram() throws OpenEnergyMonitorException {
-
-		if (in == null) {
-			connect();
-		}
-
-		throw new OpenEnergyMonitorException("Not implemented");
+		byte[] buffer = new byte[16384];
+		byte buf = '\0';
 		
-		/*
-		byte[] buffer = new byte[1024];
-
-		int len = -1;
+		if (in == null) 
+			connect();
+		
 		try {
-			while ((len = this.in.read(buffer)) > 0) {
-				for (int i = 0; i < len; i++) {
-
-				}
+			for(int i = 0; buf != -1 && (char)buf != '\n'; i++){
+				buf = (byte)this.in.read();
+				buffer[i] = buf;
 			}
 		} catch (IOException e) {
 			throw new OpenEnergyMonitorException(
 					"Error occured while receiving data", e);
 		}
-		*/
+		String msgStr = new String(buffer);
+		String[] msg = msgStr.split(" ");
+		logger.debug("Received message {}", msgStr);
+		
+		//Need to discard first token ("OK") and last two "(-79)" or similar and "\r\n"
+		byte[] packet = new byte[msg.length-3];
+		for(int i = 1; i < msg.length-2; i++){
+				packet[i-1] = (byte)Integer.parseInt(msg[i]);				
+		}
 
+		return packet;
 	}
 }
